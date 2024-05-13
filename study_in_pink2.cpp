@@ -287,21 +287,32 @@ string Sherlock::str() const
     return "Sherlock[index=" + to_string(index) + ";pos=" + pos.str() + ";moving_rule=" + moving_rule + "]";  
 }
 
-void Sherlock::meet(Robot* robot)
+bool Sherlock::meet(Robot* robot)
 {
-    if (robot->getDistance() == 1) {
+    if (robot->getDistance() == 0) {
         RobotType type = robot->getType();
+        BaseItem* item = Bag->get(EXCEMPTION_CARD);
         if (type == S) {
-
             if (exp > 400) {
                 Bag->insert(robot->getItem());
                 delete robot;
             }
-            else exp = exp*0.9;
+            else {
+                if (item != nullptr) {
+                    ExcemptionCard* excemption_card = dynamic_cast <ExcemptionCard* > (item);
+                    if (!excemption_card->canUse(this,robot)) exp = exp*0.9;
+                }
+            }
+            item = Bag->get();
+            item->use(this,nullptr);
+            return false;
         }
         else if (type == W) {
             Bag->insert(robot->getItem());
             delete robot;
+            item = Bag->get();
+            item->use(this,nullptr);
+            return false;
         }
         else if (type == SW) {
             if (exp > 300 && hp > 335) {
@@ -309,26 +320,43 @@ void Sherlock::meet(Robot* robot)
                 delete robot;
             }
             else {
-                exp *= 0.85;
-                hp *= 0.85;
+                if (item != nullptr) {
+                    ExcemptionCard* excemption_card = dynamic_cast <ExcemptionCard* > (item);
+                    if (!excemption_card->canUse(this,robot)) {
+                        exp *= 0.85;
+                        hp *= 0.85;
+                    }
+                }
             }
+            item = Bag->get();
+            item->use(this,nullptr);
+            return false;
         }
         else if (type == C) {
             if (exp > 500) {
-                // win
+                // sherlock pos = criminal pos
+                this->pos = robot->getNextPosition();
+                return true;
             }
             else {
                 Bag->insert(robot->getItem());
                 delete robot;
             }
+            item = Bag->get();
+            item->use(this,nullptr);
+            return false;
         }
         
     }
+    return false;
 }
 
-void Sherlock::meet(Watson* watson)
+bool Sherlock::meet(Watson* watson)
 {
-
+    if (pos.isEqual(watson->getCurrentPosition())) {
+        // if (sherlock)
+    }
+    return false;
 }
 
 // Watson
@@ -405,7 +433,7 @@ void Watson::setHP(int init_hp)
 
 void Watson::meet(Robot* robot)
 {
-    if (robot->getDistance() == 1) {
+    if (robot->getDistance() == 0) {
         BaseItem* item = Bag->get();
         RobotType type = robot->getType();
         if (type == S) {
@@ -530,7 +558,7 @@ int Criminal::getCount() const
 
 bool Criminal::isCreatedRobotNext() const
 {
-    if(getCount()%2 == 0 && getCount() != 0) return true;
+    if(getCount()%2 == 0 && getCount() != 0 && getCount() != 2) return true;
     return false;
 }
 
@@ -616,7 +644,7 @@ int ArrayMovingObject::size() const
 
 // Config part
 
-Configuration::Configuration(const string & filepath)
+/*Configuration::Configuration(const string & filepath)
 {
     // TODO:
     ifstream inputFile;
@@ -630,7 +658,7 @@ Configuration::Configuration(const string & filepath)
             string key = line.substr(0,line.find('='));
             string value = line.substr(line.find('=')+1,line.size());
             if (key == "MAP_NUM_ROWS") {
-                map_num_rows = stoi(value);string value = line.substr(line.find('=')+1,line.size());
+                map_num_rows = stoi(value);
             } 
             else if (key == "MAP_NUM_COLS") {
                 map_num_cols = stoi(value);
@@ -678,8 +706,7 @@ Configuration::Configuration(const string & filepath)
                 sherlock_moving_rule = value;
             } 
             else if (key == "SHERLOCK_INIT_POS") {
-                sherlock_init_pos.setRow(stoi(value.substr(value.find('(')+1,value.find(',') - value.find('(') - 1)));
-                sherlock_init_pos.setCol(stoi(value.substr(value.find(',')+1,value.find(')') - value.find(',') - 1)));  
+                sherlock_init_pos = Position(value);  
             } 
             else if (key == "SHERLOCK_INIT_HP") {
                 sherlock_init_hp = stoi(value);
@@ -691,8 +718,7 @@ Configuration::Configuration(const string & filepath)
                 watson_moving_rule = value;
             }
             else if (key == "WATSON_INIT_POS") {
-                watson_init_pos.setRow(stoi(value.substr(value.find('(')+1,value.find(',') - value.find('(') - 1)));
-                watson_init_pos.setCol(stoi(value.substr(value.find(',')+1,value.find(')') - value.find(',') - 1)));
+                watson_init_pos = Position(value); 
             }
             else if (key == "WATSON_INIT_HP") {
                 watson_init_hp = stoi(value);
@@ -701,8 +727,7 @@ Configuration::Configuration(const string & filepath)
                 watson_init_exp = stoi(value);
             }
             else if (key == "CRIMINAL_INIT_POS") {
-                criminal_init_pos.setRow(stoi(value.substr(value.find('(')+1,value.find(',') - value.find('(') - 1)));
-                criminal_init_pos.setCol(stoi(value.substr(value.find(',')+1,value.find(')') - value.find(',') - 1)));
+                criminal_init_pos = Position(value); 
             }
             else if (key == "NUM_STEPS") {
                 num_steps = stoi(value);
@@ -710,10 +735,148 @@ Configuration::Configuration(const string & filepath)
         }
     }
     inputFile.close();
+}*/
+
+
+Configuration::Configuration(const string & filepath)
+{
+    ifstream inputFile;
+    inputFile.open(filepath);
+    if (inputFile.fail()) {
+        cout << "Error opening the file\n";
+    }
+    else {
+        string line;
+        while(getline(inputFile,line)) {
+            string key = line.substr(0,line.find('='));
+            string value = line.substr(line.find('=')+1);
+            if (key == "MAP_NUM_ROWS") {
+                stringstream ss(value);
+                string sth;
+                getline(ss,sth,'=');
+                ss >> map_num_rows;
+            } 
+            else if (key == "MAP_NUM_COLS") {
+                stringstream ss(value);
+                string sth;
+                getline(ss,sth,'=');
+                ss >> map_num_cols;
+            } 
+            else if (key == "MAX_NUM_MOVING_OBJECTS") {
+                stringstream ss(value);
+                string sth;
+                getline(ss,sth,'=');
+                ss >> max_num_moving_objects;
+            }
+            else if (key == "ARRAY_WALLS") {
+                for (char x : value) {
+                    if (x == ';') num_walls++;
+                }
+                num_walls++;
+                arr_walls = new Position[num_walls];
+                value = value.substr(1,value.size()-2);
+                stringstream ss(value);
+                //string item;
+
+                char ch1;
+                int a = 0;
+                while (ss >> ch1) {
+                    if (ch1 == '(') {
+                        int num1, num2;
+                        ss >> num1;
+                        ss.ignore();
+                        ss >> num2;
+                        arr_walls[a] = Position(num1,num2);
+                        a++;
+                    }
+                }
+                /*for (int i = 0; i < num_walls; i++) {
+                    getline(ss,item, ';');
+                    arr_walls[i] = Position(item);
+                }*/
+            } 
+            else if (key == "ARRAY_FAKE_WALLS") {
+                for (char x : value) {
+                    if (x == ';') num_fake_walls++;
+                }
+                num_fake_walls++;
+                arr_fake_walls = new Position[num_fake_walls];
+                value = value.substr(1,value.size()-2);
+                stringstream ss(value);
+                //string item;
+                char ch1;
+                int a = 0;
+                while (ss >> ch1) {
+                    if (ch1 == '(') {
+                        int num1, num2;
+                        ss >> num1;
+                        ss.ignore();
+                        ss >> num2;
+                        arr_fake_walls[a] = Position(num1,num2);
+                        a++;
+                    }
+                }
+                /*for (int i = 0; i < num_fake_walls; i++) {
+                    getline(ss,item, ';');
+                    arr_fake_walls[i] = Position(item);
+                }*/
+            } 
+            else if (key == "SHERLOCK_MOVING_RULE") {
+                sherlock_moving_rule = value;
+            } 
+            else if (key == "SHERLOCK_INIT_POS") {
+                sherlock_init_pos = Position(value);  
+            } 
+            else if (key == "SHERLOCK_INIT_HP") {
+                stringstream ss(value);
+                string sth;
+                getline(ss,sth,'=');
+                ss >> sherlock_init_hp;
+            } 
+            else if (key == "SHERLOCK_INIT_EXP") {
+                stringstream ss(value);
+                string sth;
+                getline(ss,sth,'=');
+                ss >> sherlock_init_exp;
+            }
+            else if (key == "WATSON_MOVING_RULE") {
+                watson_moving_rule = value;
+            }
+            else if (key == "WATSON_INIT_POS") {
+                watson_init_pos = Position(value); 
+            }
+            else if (key == "WATSON_INIT_HP") {
+                stringstream ss(value);
+                string sth;
+                getline(ss,sth,'=');
+                ss >> watson_init_hp;
+            }
+            else if (key == "WATSON_INIT_EXP") {
+                stringstream ss(value);
+                string sth;
+                getline(ss,sth,'=');
+                ss >> watson_init_exp;
+            }
+            else if (key == "CRIMINAL_INIT_POS") {
+                criminal_init_pos = Position(value); 
+            }
+            else if (key == "NUM_STEPS") {
+                stringstream ss(value);
+                string sth;
+                getline(ss,sth,'=');
+                ss >> num_steps;
+            }
+        }
+    }
+    inputFile.close();
 }
+
+
 
 Configuration::~Configuration()
 {
+    delete[] this->arr_walls;
+    delete[] this->arr_fake_walls;
 }
 
 string Configuration::str() const
@@ -751,6 +914,47 @@ Robot::Robot(int index, const Position &pos, Map* map, RobotType robot_type, Cri
 {
     this->robot_type = robot_type;
     this->criminal = criminal;
+
+    int p = pos.getRow() * pos.getCol();
+    if (p == 0) p = 0;
+    else if (p%9 == 0) p = 9;
+    else p = p%9;
+
+    switch(p) {
+    case 0:
+    case 1:
+        item = new MagicBook();
+        break;
+    case 2:
+    case 3:
+        item = new EnergyDrink();
+        break;
+    case 4:
+    case 5:
+        item = new FirstAid();
+        break;
+    case 6:
+    case 7:
+        item = new ExcemptionCard();
+        break;
+    case 8:
+    case 9: 
+    {
+        int t = (pos.getRow()*11 + pos.getCol()) % 4;
+        if (t == 0) item = new PassingCard("RobotS");
+        else if (t == 1) item = new PassingCard("RobotC");
+        else if (t == 2) item = new PassingCard("RobotSW");
+        else if (t == 3) item = new PassingCard("all");
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+Robot::~Robot()
+{
+    delete item;
 }
 
 Robot* Robot::create(int index, Map* map, Criminal* criminal, Sherlock* sherlock, Watson* watson)
@@ -789,11 +993,7 @@ BaseItem* Robot::getItem() const
 
 RobotC::RobotC(int index, const Position &init_pos, Map* map, Criminal* criminal)
     : Robot(index, init_pos, map, robot_type, criminal, "RobotC")
-{
-    this->robot_type = robot_type;
-    this->pos = init_pos;
-    this->criminal = criminal;
-}
+{}
 
 Position RobotC::getNextPosition()
 {
@@ -1097,7 +1297,7 @@ bool MagicBook::canUse(Character* obj, Robot* robot)
 void MagicBook::use(Character* obj, Robot* robot)
 {
     if (canUse(obj, robot)) {
-        obj->setEXP(obj->getEXP()*1.25);
+        obj->setEXP(min(obj->getEXP()*1.25 - 0.00001, 900.0));
     }
 }
 // CLASS: EnergyDrink
@@ -1125,7 +1325,7 @@ bool EnergyDrink::canUse(Character* obj, Robot* robot)
 void EnergyDrink::use(Character* obj, Robot* robot)
 {
     if (canUse(obj, robot)) {
-        obj->setHP(obj->getHP()*1.2);
+        obj->setHP(min(obj->getHP()*1.2 - 0.00001, 500.0));
     }
 }
 
@@ -1154,7 +1354,7 @@ bool FirstAid::canUse(Character* obj, Robot* robot)
 void FirstAid::use(Character* obj, Robot* robot)
 {
     if (canUse(obj, robot)) {
-        obj->setHP(obj->getHP()*1.5);
+        obj->setHP(min(obj->getHP()*1.5 - 0.00001, 500.0));
     }
 }
 
@@ -1183,11 +1383,7 @@ bool ExcemptionCard::canUse(Character* obj, Robot* robot)
 }
 
 void ExcemptionCard::use(Character* obj, Robot* robot)
-{
-    if (canUse(obj, robot)) {
-
-    }
-}
+{}
 
 // *CLASS: PassingCard
 /*PassingCard::PassingCard(int i, int j)
@@ -1240,6 +1436,7 @@ void PassingCard::use(Character* obj, Robot* robot)
         }
     }
     else obj->setEXP(obj->getEXP()-50);
+    if (obj->getHP() < 0) obj->setHP(0);
 }
 
 // *CLASS: BaseBag
@@ -1474,11 +1671,21 @@ BaseItem * SherlockBag::get() {
 BaseItem * SherlockBag::get(ItemType itemtype) {
     Node * head = sherlockbag->getHead(); 
     while (head != nullptr) {
-        if (head->data->canUse(this->getObj(), nullptr) && head->data->getType() == itemtype) {
-            BaseItem * back = head->data;
-            sherlockbag->swapNode(head); 
-            sherlockbag->deleteHead();
-            return back; 
+        if (itemtype == EXCEMPTION_CARD || itemtype == PASSING_CARD) {
+            if (head->data->getType() == itemtype) {
+                BaseItem * back = head->data;
+                sherlockbag->swapNode(head); 
+                sherlockbag->deleteHead();
+                return back; 
+            }
+        }
+        else {
+            if (head->data->canUse(this->getObj(), nullptr) && head->data->getType() == itemtype) {
+                BaseItem * back = head->data;
+                sherlockbag->swapNode(head); 
+                sherlockbag->deleteHead();
+                return back; 
+            }
         }
         head = head->next;
     }
@@ -1551,11 +1758,16 @@ BaseItem * WatsonBag::get() {
 BaseItem * WatsonBag::get(ItemType itemtype) {
     Node * head = watsonbag->getHead(); 
     while (head != nullptr) {
-        if (head->data->canUse(this->getObj(), nullptr) && head->data->getType() == itemtype) {
-            BaseItem * back = head->data;
-            watsonbag->swapNode(head); 
-            watsonbag->deleteHead();
-            return back; 
+        if (itemtype == PASSING_CARD || itemtype == EXCEMPTION_CARD) {
+            
+        }
+        else {
+            if (head->data->canUse(this->getObj(), nullptr) && head->data->getType() == itemtype) {
+                BaseItem * back = head->data;
+                watsonbag->swapNode(head); 
+                watsonbag->deleteHead();
+                return back; 
+            }
         }
         head = head->next;
     }
@@ -1600,10 +1812,10 @@ StudyPinkProgram::~StudyPinkProgram()
 {
     delete map;
     delete config;
-    delete arr_mv_objs;
     delete sherlock;
     delete watson;
     delete criminal;
+    delete arr_mv_objs;
 }
 
 void StudyPinkProgram::run(ofstream &OUTPUT)
@@ -1620,7 +1832,7 @@ void StudyPinkProgram::run(ofstream &OUTPUT)
         {
             OUTPUT << "*********************************************************" << endl;
             OUTPUT << "ROUND : " << istep << " - TURN : " << i << endl;
-            MovingObject *robot = nullptr;
+            MovingObject* robot = nullptr;
             if (arr_mv_objs->get(i)->getObjectType() == MovingObjectType::CRIMINAL)
             {
                 robot = Robot::create(arr_mv_objs->size(), map, criminal, sherlock, watson);
@@ -1641,6 +1853,49 @@ void StudyPinkProgram::run(ofstream &OUTPUT)
         }
     }
 }
+
+void StudyPinkProgram::run(bool verbose){}
+
+/*void StudyPinkProgram::run(bool verbose)
+{
+    for (int istep = 0; istep < config->num_steps; ++istep)
+    {
+        for (int i = 0; i < config->max_num_moving_objects; ++i)
+        {
+            arr_mv_objs->get(i)->move();
+
+            if (isStop())
+            {
+                printStep(istep);
+                break;
+            }
+
+            if (verbose)
+            {
+                printStep(istep);
+            }
+
+            Sherlock *sherlock = dynamic_cast<Sherlock *>(arr_mv_objs->get(i));
+            if (sherlock != nullptr)
+            {
+                sherlock->meet();
+                sherlock->afterMove(arr_mv_objs, sherlock_bag, watson_bag);
+            }
+            Watson *watson = dynamic_cast<Watson *>(arr_mv_objs->get(i));
+            if (watson != nullptr)
+            {
+                watson->afterMove(arr_mv_objs, sherlock_bag, watson_bag);
+            }
+            Criminal *criminal = dynamic_cast<Criminal *>(arr_mv_objs->get(i));
+            if (criminal != nullptr)
+            {
+                criminal->createRobot(arr_mv_objs);
+            }
+        }
+    }
+    printResult();
+}*/
+
 
 void StudyPinkProgram::printMap(ofstream &OUTPUT) const
 {
@@ -1701,7 +1956,23 @@ bool StudyPinkProgram::isStop() const
 }
 
 
+void StudyPinkProgram::printResult() const {
+    if (sherlock->getCurrentPosition().isEqual(criminal->getCurrentPosition())) {
+        cout << "Sherlock caught the criminal" << endl;
+    }
+    else if (watson->getCurrentPosition().isEqual(criminal->getCurrentPosition())) {
+        cout << "Watson caught the criminal" << endl;
+    }
+    else {
+        cout << "The criminal escaped" << endl;
+    }
+}
 
+void StudyPinkProgram::printStep(int si) const {
+    cout << "Step: " << setw(4) << setfill('0') << si
+        << "--"
+        << sherlock->str() << "--|--" << watson->str() << "--|--" << criminal->str() << endl;
+}
 ////////////////////////////////////////////////
 /// END OF STUDENT'S ANSWER
 ////////////////////////////////////////////////

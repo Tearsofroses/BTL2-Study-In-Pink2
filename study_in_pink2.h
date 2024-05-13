@@ -168,8 +168,8 @@ public:
     int getHP() const;
     int getEXP() const;
     MovingObjectType getObjectType() const;
-    void meet(Robot* robot);
-    void meet(Watson* watson);
+    bool meet(Robot* robot);
+    bool meet(Watson* watson);
 };
 
 class Watson : public Character {
@@ -240,22 +240,22 @@ class Configuration {
     friend class StudyPinkProgram;
     friend class TestStudyInPink;
 private:
-    int map_num_rows, map_num_cols;
-    int max_num_moving_objects;
+    int map_num_rows = 0, map_num_cols = 0;
+    int max_num_moving_objects = 0;
     int num_walls = 0;
-    Position* arr_walls;
+    Position* arr_walls = nullptr;
     int num_fake_walls = 0;
-    Position* arr_fake_walls;
-    string sherlock_moving_rule;
-    Position sherlock_init_pos;
-    int sherlock_init_hp;
-    int sherlock_init_exp;
-    string watson_moving_rule;
-    Position watson_init_pos;
-    int watson_init_hp;
-    int watson_init_exp;
-    Position criminal_init_pos;
-    int num_steps;
+    Position* arr_fake_walls = nullptr;
+    string sherlock_moving_rule = "";
+    Position sherlock_init_pos = Position(-1,-1);
+    int sherlock_init_hp = 0;
+    int sherlock_init_exp = 0;
+    string watson_moving_rule = "";
+    Position watson_init_pos = Position(-1,-1);
+    int watson_init_hp = 0;
+    int watson_init_exp = 0;
+    Position criminal_init_pos = Position(-1,-1);
+    int num_steps = 0;
 public:
     Configuration(const string & filepath);
     ~Configuration();
@@ -273,6 +273,7 @@ protected:
 
 public:
     Robot(int index, const Position &pos, Map* map, RobotType robot_type, Criminal* criminal, const string &name = "");
+    ~Robot();
 
     static Robot* create(int index, Map* map, Criminal* criminal, Sherlock* sherlock, Watson* watson);
     MovingObjectType getObjectType() const;
@@ -546,46 +547,15 @@ private:
 
 public:
     StudyPinkProgram(const string & config_file_path);
-
+    ~StudyPinkProgram();
     bool isStop() const;
     void printMap(ofstream &OUTPUT) const;
-    void printResult() const {
-        if (sherlock->getCurrentPosition().isEqual(criminal->getCurrentPosition())) {
-            cout << "Sherlock caught the criminal" << endl;
-        }
-        else if (watson->getCurrentPosition().isEqual(criminal->getCurrentPosition())) {
-            cout << "Watson caught the criminal" << endl;
-        }
-        else {
-            cout << "The criminal escaped" << endl;
-        }
-    }
+    void printResult() const;
 
-    void printStep(int si) const {
-        cout << "Step: " << setw(4) << setfill('0') << si
-            << "--"
-            << sherlock->str() << "--|--" << watson->str() << "--|--" << criminal->str() << endl;
-    }
+    void printStep(int si) const;
 
-    void run(bool verbose) {
-        // Note: This is a sample code. You can change the implementation as you like.
-        // TODO
-        for (int istep = 0; istep < config->num_steps; ++istep) {
-            for (int i = 0; i < arr_mv_objs->size(); ++i) {
-                arr_mv_objs->get(i)->move();
-                if (isStop()) {
-                    printStep(istep);
-                    break;
-                }
-                if (verbose) {
-                    printStep(istep);
-                }
-            }
-        }
-        printResult();
-    }
+    void run(bool verbose);
     void run(ofstream &OUTPUT);
-    ~StudyPinkProgram();
 };
 
 
