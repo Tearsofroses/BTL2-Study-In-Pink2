@@ -119,7 +119,7 @@ class MovingObject {
 protected:
     int index;
     Position pos;
-    Map * map;
+    Map* map;
     string name;
 
 public:
@@ -146,6 +146,7 @@ public:
     virtual void setEXP(int init_exp) = 0;
     virtual string str() const = 0;
     virtual MovingObjectType getObjectType() const = 0;
+    virtual void action(ArrayMovingObject* arr_mv_objs, SherlockBag*  sherlockbag, WatsonBag* watsonbag);
 };
 
 class Sherlock : public Character {
@@ -155,7 +156,6 @@ private:
     int hp;
     int exp;
     int move_count = 0;
-    BaseBag* Bag;
 
 public:
     Sherlock(int index, const string & moving_rule, const Position & init_pos, Map * map, int init_hp, int init_exp);
@@ -168,8 +168,7 @@ public:
     int getHP() const;
     int getEXP() const;
     MovingObjectType getObjectType() const;
-    bool meet(Robot* robot);
-    bool meet(Watson* watson);
+    void action(ArrayMovingObject* arr_mv_objs, SherlockBag*  sherlockbag, WatsonBag* watsonbag) override;
 };
 
 class Watson : public Character {
@@ -178,7 +177,6 @@ private:
     string moving_rule;
     int hp;
     int exp;
-    BaseBag* Bag;
     int move_count = 0;
 
 public:
@@ -192,8 +190,7 @@ public:
     void setEXP(int init_exp);
     void setHP(int init_hp);
     MovingObjectType getObjectType() const;
-    void meet(Robot* robot);
-    void meet(Sherlock* sherlock);
+    void action(ArrayMovingObject* arr_mv_objs, SherlockBag*  sherlockbag, WatsonBag* watsonbag) override;
 };
 
 
@@ -216,6 +213,7 @@ public:
     MovingObjectType getObjectType() const;
     int getCount() const;
     void move();
+    void create(ArrayMovingObject* arr_mv_objs, Sherlock* sherlock, Watson* watson);
 };
 
 class ArrayMovingObject {
@@ -232,13 +230,12 @@ public:
     bool isFull() const;
     bool add(MovingObject* mv_obj);
     MovingObject* get(int index) const;
-    int size() const; // return current number of elements in the array
+    int MovingObjectCount() const;
+    int size() const;
     string str() const;
 };
 
-class Configuration {
-    friend class StudyPinkProgram;
-    friend class TestStudyInPink;
+/*class Configuration {
 private:
     int map_num_rows = 0, map_num_cols = 0;
     int max_num_moving_objects = 0;
@@ -257,10 +254,60 @@ private:
     Position criminal_init_pos = Position(-1,-1);
     int num_steps = 0;
 public:
+    friend class StudyPinkProgram;
+    friend class TestStudyInPink;
     Configuration(const string & filepath);
     ~Configuration();
-    
     string str() const;
+};*/
+
+class Configuration
+{
+private:
+    int map_num_rows;
+    int map_num_cols = 0;
+    int max_num_moving_objects = 0;
+    int num_walls = 0;
+    Position *arr_walls = NULL;
+    int num_fake_walls = 0;
+    Position *arr_fake_walls = NULL;
+    string sherlock_moving_rule = "";
+    Position sherlock_init_pos = Position(-1, -1);
+    int sherlock_init_hp = 0;
+    int sherlock_init_exp = 0;
+    string watson_moving_rule = "";
+    Position watson_init_pos = Position(-1, -1);
+    int watson_init_hp = 0;
+    int watson_init_exp = 0;
+    Position criminal_init_pos = Position(-1, -1);
+    int num_steps;
+
+public:
+    friend class TestStudyPink;
+
+    // Constructor & Destructor
+    Configuration(const string &filepath);
+    ~Configuration();
+    string str() const;
+
+    // Getter
+    int getNumRows() const { return this->map_num_rows; }
+    int getNumCols() const { return this->map_num_cols; }
+    int getMaxNumMovingObjects() const { return this->max_num_moving_objects; }
+    int getNumWalls() const { return this->num_walls; }
+    Position *getArrWalls() const { return this->arr_walls; }
+    int getNumFakeWalls() const { return this->num_fake_walls; }
+    Position *getArrFakeWalls() const { return this->arr_fake_walls; }
+    string getSherlockMovingRule() const { return this->sherlock_moving_rule; }
+    Position getSherlockInitPos() const { return this->sherlock_init_pos; }
+    int getSherlockInitHp() const { return this->sherlock_init_hp; }
+    int getSherlockInitExp() const { return this->sherlock_init_exp; }
+    string getWatsonMovingRule() const { return this->watson_moving_rule; }
+    Position getWatsonInitPos() const { return this->watson_init_pos; }
+    int getWatsonInitHp() const { return this->watson_init_hp; }
+    int getWatsonInitExp() const { return this->watson_init_exp; }
+    Position getCriminalInitPos() const { return this->criminal_init_pos; }
+    int getNumSteps() const { return this->num_steps; }
 };
 
 // Robot, BaseItem, BaseBag,...
@@ -275,7 +322,6 @@ public:
     Robot(int index, const Position &pos, Map* map, RobotType robot_type, Criminal* criminal, const string &name = "");
     ~Robot();
 
-    static Robot* create(int index, Map* map, Criminal* criminal, Sherlock* sherlock, Watson* watson);
     MovingObjectType getObjectType() const;
     virtual Position getNextPosition() = 0;
     virtual void move() = 0;
@@ -464,76 +510,54 @@ public:
 
 class Node {
     public:
-        BaseItem* data;
+        BaseItem* item;
         Node* next;
 
         Node();
-        Node(BaseItem* data);
+        Node(BaseItem* item);
         ~Node();
-};
-
-class Linkedlist {
-private:
-    Node* head;
-public:
-    Linkedlist();
-    ~Linkedlist();
-    void insert(BaseItem* item);
-    Node* getHead();
-    void deleteNode(Node* node);
-    void swapNode(Node* node);
-    void deleteHead();
-    int countItem();
-    string printList();
 };
 
 class BaseBag {
     friend class TestStudyInPink;
-private:
+protected:
+    int capacity;
+    int count = 0;
     Character* obj;
+    Node* head = NULL;
 public:
     BaseBag(Character* obj);
-    virtual bool insert(BaseItem* item) = 0;
-    virtual BaseItem* get() = 0;
-    virtual BaseItem* get(ItemType itemType) = 0;
-    virtual string str() const = 0;
+    ~BaseBag();
+
+    virtual bool insert(BaseItem* item);
+    virtual BaseItem* get();
+    virtual BaseItem* get(ItemType itemType);
     Character* getObj();
-    virtual BaseItem* find(ItemType itemtype) = 0;
+    virtual string str() const;
+
+    void deleteNode(Node* node);
+    void swapNode(Node* node);
+    void deleteHead();
 };
 
 class SherlockBag : public BaseBag {
 private:
-    int maximum = 13;
-    Linkedlist* sherlockbag = new Linkedlist();
-
+    Sherlock* sherlock;
 public:
-    SherlockBag(Sherlock* character);
-    ~SherlockBag();
-    bool insert(BaseItem* item);
-    BaseItem* get();
-    BaseItem* get(ItemType itemtype);
-    string str() const;
-    BaseItem* find(ItemType itemtype);
+    SherlockBag(Sherlock* sherlock);
 };
 
 class WatsonBag : public BaseBag {
 private:
-    int maximum = 15;
-    Linkedlist* watsonbag = new Linkedlist();
-
+    Watson* watson;
 public:
-    WatsonBag(Watson* character);
-    ~WatsonBag();
-    bool insert(BaseItem* item);
-    BaseItem* get();
-    BaseItem* get(ItemType itemtype);
-    string str() const;
-    BaseItem* find(ItemType itemtype);
+    WatsonBag(Watson* watson);
 };
 
 
 
 class StudyPinkProgram {
+    friend class TestStudyInPink;
 private:
     Configuration* config;
     
@@ -543,19 +567,18 @@ private:
     
     Map* map;
     ArrayMovingObject* arr_mv_objs;
-
+    SherlockBag* sherlockbag;
+    WatsonBag* watsonbag;
 
 public:
     StudyPinkProgram(const string & config_file_path);
     ~StudyPinkProgram();
     bool isStop() const;
-    void printMap(ofstream &OUTPUT) const;
     void printResult() const;
 
     void printStep(int si) const;
 
     void run(bool verbose);
-    void run(ofstream &OUTPUT);
 };
 
 
