@@ -89,7 +89,7 @@ public:
 
 class Path : public MapElement
 {
-    friend class TestStudyPink;
+    friend class TestStudyInPink;
 
 public:
     Path();
