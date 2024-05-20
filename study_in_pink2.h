@@ -264,7 +264,7 @@ private:
     Watson *watson;
     // addition
     int count;
-    Position prev_pos;
+    Position prev_pos = Position::npos;
 
 public:
     Criminal(int index, const Position &init_pos, Map *map, Sherlock *sherlock, Watson *watson);
