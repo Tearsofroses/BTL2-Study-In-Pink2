@@ -1796,6 +1796,7 @@ bool Sherlock::meet(RobotC *robotC)
                 return true;
             }
             BaseItem* item = robotC->NewItem();
+            bag->insert(item);
             BaseItem* sth = bag->get();
             if (sth != nullptr) sth->use(this,nullptr);
             return false;
