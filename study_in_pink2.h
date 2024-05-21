@@ -275,7 +275,7 @@ public:
     int manhattanDistance(const Position &pos1, const Position &pos2) const;
     MovingObjectType getObjectType() const;
     int getCount() const;
-    bool isCreatedRobotNext() const;
+    // bool isCreatedRobotNext() const;
     Position getPrevPosition() const;
     int getHP() const;
     int getEXP() const;
@@ -560,6 +560,7 @@ public:
     virtual string str() const;
 
     // addition
+    bool CheckItem(ItemType itemType);
     BaseBag(int capacity);
     virtual ~BaseBag();
     bool checkItem(ItemType itemType);

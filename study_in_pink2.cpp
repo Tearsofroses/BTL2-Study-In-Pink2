@@ -173,8 +173,8 @@ void Sherlock::move()
 {
     Position next_position = this->getNextPosition();
     index_moving_rule++;
-    if(next_position.isEqual(Position::npos)) return;
-    this->pos = next_position;
+    if(next_position.isEqual(Position::npos) || exp == 0) pos = pos;
+    else this->pos = next_position;
 }
 
 string Sherlock::str() const
@@ -260,7 +260,7 @@ void Watson::move()
 {
     Position next_position = getNextPosition();
     index_moving_rule++;
-    if(next_position.isEqual(Position::npos)) return;
+    if(next_position.isEqual(Position::npos) || exp == 0) return;
     pos = next_position;
 }
 
@@ -443,11 +443,6 @@ int Criminal::getCount() const
     return count;
 }
 
-bool Criminal::isCreatedRobotNext() const
-{
-    if (this->getCount()%3 == 2) return true;
-    return false;
-}
 /*
  * CLASS: Robot kế thừa class MovingObject
  */
@@ -457,21 +452,22 @@ RobotType Robot::getType()
     return robot_type;
 }
 
+
 Robot* Robot::create(int index, Map* map, Criminal* criminal, Sherlock* sherlock, Watson* watson)
 {
-    if (criminal->getCount() == 2) return new RobotC(index, criminal->getCurrentPosition(), map, criminal);
+    if (criminal->getCount() == 3) return new RobotC(index, criminal->getPrevPosition(), map, criminal);
 
-    if (criminal->isCreatedRobotNext()) {
-        int criminal_sherlock_distance = ManhattanDistance(criminal->getCurrentPosition(), sherlock->getCurrentPosition());
-        int criminal_watson_distance =  ManhattanDistance(criminal->getCurrentPosition(), watson->getCurrentPosition());
+    if (criminal->getCount()%3 == 0) {
+        int criminal_sherlock_distance = ManhattanDistance(criminal->getPrevPosition(), sherlock->getCurrentPosition());
+        int criminal_watson_distance =  ManhattanDistance(criminal->getPrevPosition(), watson->getCurrentPosition());
         if (criminal_sherlock_distance < criminal_watson_distance) {
-            return new RobotS(index, criminal->getCurrentPosition(), map, criminal, sherlock);
+            return new RobotS(index, criminal->getPrevPosition(), map, criminal, sherlock);
         }
         else if (criminal_sherlock_distance > criminal_watson_distance) {
-            return new RobotW(index, criminal->getCurrentPosition(), map, criminal, watson);
+            return new RobotW(index, criminal->getPrevPosition(), map, criminal, watson);
         }
         else {
-            return new RobotSW(index, criminal->getCurrentPosition(), map, criminal, sherlock, watson);
+            return new RobotSW(index, criminal->getPrevPosition(), map, criminal, sherlock, watson);
         }
     }
     return NULL;
@@ -1214,6 +1210,15 @@ BaseItem *BaseBag::get(ItemType itemType)
 
 }
 
+bool BaseBag::checkItem(ItemType itemType)
+{
+    for (int i = 0; i < size; i++) {
+        Node* temp = head;
+        if (temp->item->getType() == itemType) return true;
+    }
+    return false;
+}
+
 string BaseBag::str() const
 {
     // TODO: trả về chuỗi biểu diễn
@@ -1487,20 +1492,23 @@ void StudyPinkProgram::run(bool verbose, ofstream &OUTPUT)
         int roundSize = arr_mv_objs->size();
         for (int i = 0; i < roundSize && !stopChecker; ++i)
         {
+            arr_mv_objs->get(i)->move();
+            stopChecker = arr_mv_objs->checkMeet(i);
+            if (isStop()) {
+                printInfo(istep, i, OUTPUT);
+                return;
+            }
             MovingObject *robot = nullptr;
             if (arr_mv_objs->get(i)->getObjectType() == MovingObjectType::CRIMINAL)
             {
-                // RobotC* robotC = dynamic_cast <RobotC*> (mv_obj_2);
                 Criminal* criminal = dynamic_cast <Criminal*> (arr_mv_objs->get(i));
-                if (!criminal->getPrevPosition().isEqual(criminal->getCurrentPosition())) robot = Robot::create(arr_mv_objs->size(), map, criminal, sherlock, watson);
+                if (!criminal->getPrevPosition().isEqual(criminal->getCurrentPosition()))
+                        robot = Robot::create(arr_mv_objs->size(), map, criminal, sherlock, watson);
             }
             if (robot != nullptr) {
                 arr_mv_objs->add(robot);
                 roundSize = arr_mv_objs->size();
             }
-
-            arr_mv_objs->get(i)->move();
-            stopChecker = arr_mv_objs->checkMeet(i);
 
             printInfo(istep, i, OUTPUT);
         }
@@ -1597,9 +1605,7 @@ bool ArrayMovingObject::checkMeet(int index) const
                 if (mv_obj_2->getObjectType() == ROBOT) {
                     // return false;
                 }
-                if (mv_obj_2->getObjectType() == SHERLOCK) {
-                    return true;
-                }
+                if (mv_obj_2->getObjectType() == SHERLOCK) return true;
                 if (mv_obj_2->getObjectType() == WATSON) return true;
             }
             if (mv_obj_1->getObjectType() == ROBOT) {
@@ -1686,6 +1692,18 @@ bool Sherlock::meet(RobotS *robotS)
             if (sth != nullptr) sth ->use(this,nullptr);
             return false;
         }
+        else {
+            BaseItem* item = robotS->NewItem();
+            if (exp > 400) { 
+                bag->insert(item);
+            }
+            else {
+                exp = ceil(exp*0.9 - 0.0001);
+            }
+            BaseItem* sth = bag->get();
+            if (sth != nullptr) sth ->use(this,nullptr);
+            return false;
+        }
     }
 
     BaseItem* item = robotS->NewItem();
@@ -1712,6 +1730,13 @@ bool Sherlock::meet(RobotW *robotW)
             if (sth != nullptr) sth->use(this,nullptr);
             return false;
         }
+        else {
+            BaseItem* item = robotW->NewItem();
+            bag->insert(item);
+            BaseItem* sth = bag->get();
+            if (sth != nullptr) sth ->use(this,nullptr);
+            return false;
+        }
     }
     BaseItem* item = robotW->NewItem();
     bag->insert(item);
@@ -1728,6 +1753,19 @@ bool Sherlock::meet(RobotSW *robotSW)
             BaseItem* item = robotSW->NewItem();
             if (exp > 300 && hp > 335) {
                 bag->insert(item);
+            }
+            BaseItem* sth = bag->get();
+            if (sth != nullptr) sth->use(this,nullptr);
+            return false;
+        }
+        else {
+            BaseItem* item = robotSW->NewItem();
+            if (exp > 300 && hp > 335) {
+                bag->insert(item);
+            }
+            else {
+                exp = ceil(exp*0.85 - 0.0001);
+                hp = ceil(hp*0.85 - 0.0001);
             }
             BaseItem* sth = bag->get();
             if (sth != nullptr) sth->use(this,nullptr);
@@ -1762,6 +1800,18 @@ bool Sherlock::meet(RobotC *robotC)
             if (sth != nullptr) sth->use(this,nullptr);
             return false;
         }
+        else {
+            BaseItem* item = robotC->NewItem();
+            if (exp > 500) {
+                pos = robotC->CriminalPos();
+                return true;
+            }
+            else bag->insert(item);
+
+            BaseItem* sth = bag->get();
+            if (sth != nullptr) sth->use(this,nullptr);
+            return false;
+        }
     }
     
     BaseItem* item = robotC->NewItem();
@@ -1779,6 +1829,8 @@ bool Sherlock::meet(Watson *watson)
 {
     // TODO: Xử lý trao đổi thẻ ExcemptionCard
     // TODO: KHI CẢ 2 ĐỀU CÓ THỂ TRAO ĐỔI && ĐỔI TOÀN BỘ NẾU NHIỀU HƠN 1 (KỂ CẢ KHI ĐỐI PHƯƠNG)
+    if (!(bag->checkItem(PASSING_CARD) && watson->getBag()->checkItem(EXCEMPTION_CARD))) return false;
+
     BaseItem *temp_sherItem = bag->get(PASSING_CARD);
     BaseItem *temp_watsonItem = watson->getBag()->get(EXCEMPTION_CARD);
     if (temp_sherItem != NULL && temp_watsonItem != NULL)
@@ -1791,7 +1843,7 @@ bool Sherlock::meet(Watson *watson)
             temp_watsonItem = watson->getBag()->get(EXCEMPTION_CARD);
         }
     }
-    return true;
+    return false;
 }
 // *CLASS: Watson
 // ! Lưu ý: PassingCard được dùng khi GẶP ROBOT để bỏ qua thử thách nếu đúng loại thẻ
@@ -1799,8 +1851,10 @@ bool Sherlock::meet(Watson *watson)
 bool Watson::meet(RobotS *robotS)
 {
     // TODO: Xử lý trao đổi khi gặp robot S
-    BaseItem* temp =  bag->get(PASSING_CARD);
-    if (temp != nullptr) temp->use(this, robotS);
+    if (hp%2 == 0) {
+        BaseItem* temp =  bag->get(PASSING_CARD);
+        if (temp != nullptr) temp->use(this, robotS);
+    }
     BaseItem* sth = bag->get();
     if (sth != nullptr) sth->use(this,nullptr);
     return false;
@@ -1808,16 +1862,17 @@ bool Watson::meet(RobotS *robotS)
 bool Watson::meet(RobotW *robotW)
 {
     // TODO: Xử lý trao đổi khi gặp robot W
-    BaseItem* temp =  bag->get(PASSING_CARD);
-    if (temp != nullptr) {
-        temp->use(this,robotW);
-        BaseItem* item = robotW->NewItem();
-        bag->insert(item);
-        BaseItem* sth = bag->get();
-        if (sth != nullptr) sth->use(this,nullptr);
-        return false;
+    if (hp%2 == 0) {
+        BaseItem* temp =  bag->get(PASSING_CARD);
+        if (temp != nullptr) {
+            temp->use(this,robotW);
+            BaseItem* item = robotW->NewItem();
+            bag->insert(item);
+            BaseItem* sth = bag->get();
+            if (sth != nullptr) sth->use(this,nullptr);
+            return false;
+        }
     }
-
     BaseItem* item = robotW->NewItem();
     if (hp > 350) {
         bag->insert(item);
@@ -1832,16 +1887,17 @@ bool Watson::meet(RobotW *robotW)
 bool Watson::meet(RobotSW *robotSW)
 {
     // TODO: Xử lý trao đổi khi gặp robot SW
-    BaseItem* temp =  bag->get(PASSING_CARD);
-    if (temp != nullptr) {
-        temp->use(this,robotSW);
-        BaseItem* item = robotSW->NewItem();
-        bag->insert(item);
-        BaseItem* sth = bag->get();
-        if (sth != nullptr) sth->use(this,nullptr);
-        return false;
+    if (hp%2 == 0) {
+        BaseItem* temp =  bag->get(PASSING_CARD);
+        if (temp != nullptr) {
+            temp->use(this,robotSW);
+            BaseItem* item = robotSW->NewItem();
+            bag->insert(item);
+            BaseItem* sth = bag->get();
+            if (sth != nullptr) sth->use(this,nullptr);
+            return false;
+        }
     }
-    
     BaseItem* item = robotSW->NewItem();
     if (exp > 600 && hp > 165) {
         bag->insert(item);
@@ -1857,14 +1913,16 @@ bool Watson::meet(RobotSW *robotSW)
 bool Watson::meet(RobotC *robotC)
 {
     // TODO: Xử lý trao đổi khi gặp robot C
-    BaseItem* temp = bag->get(PASSING_CARD);
-    if (temp != nullptr) {
-        temp->use(this, robotC);
-        BaseItem* item = robotC->NewItem();
-        bag->insert(item);
-        BaseItem* sth = bag->get();
-        if (sth != nullptr) sth->use(this,nullptr);
-        return false;
+    if (hp%2 == 0) {
+        BaseItem* temp = bag->get(PASSING_CARD);
+        if (temp != nullptr) {
+            temp->use(this, robotC);
+            BaseItem* item = robotC->NewItem();
+            bag->insert(item);
+            BaseItem* sth = bag->get();
+            if (sth != nullptr) sth->use(this,nullptr);
+            return false;
+        }
     }
     BaseItem* item = robotC->NewItem();
     bag->insert(item);
@@ -1876,6 +1934,7 @@ bool Watson::meet(RobotC *robotC)
 bool Watson::meet(Sherlock *sherlock)
 {
     // TODO: Xử lý trao đổi khi gặp Sherlock
+    if (!(sherlock->getBag()->checkItem(PASSING_CARD) && bag->checkItem(EXCEMPTION_CARD))) return false;
     BaseItem *temp_sherItem = sherlock->getBag()->get(PASSING_CARD);
     BaseItem *temp_watsonItem = bag->get(EXCEMPTION_CARD);
     if (temp_sherItem != NULL && temp_watsonItem != NULL)
